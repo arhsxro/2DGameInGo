@@ -5,6 +5,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"log"
+	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -13,6 +14,13 @@ import (
 
 const screenWidth int = 1020
 const screenHeight int = 860
+
+var (
+	positionsLane1 = float64(screenWidth/2) - 450
+	positionsLane2 = float64(screenWidth/2) - 200
+	positionsLane3 = float64(screenWidth/2) + 300
+	positionsLane4 = float64(screenWidth/2) + 100
+)
 
 type Game struct {
 	player         *ebiten.Image
@@ -51,12 +59,21 @@ type Game struct {
 	laneR4         *ebiten.Image
 	laneR4PosX     float64
 	laneR4PosY     float64
+	car1           *ebiten.Image
+	car1PosX       float64
+	car1PosY       float64
+	car2           *ebiten.Image
+	car2PosX       float64
+	car2PosY       float64
+	car3           *ebiten.Image
+	car3PosX       float64
+	car3PosY       float64
 }
 
 func (g *Game) Update() error {
 
 	for _, k := range inpututil.AppendPressedKeys([]ebiten.Key{ebiten.KeyRight, ebiten.KeyLeft}) {
-		if k == ebiten.KeyRight && g.playerPosX < float64(screenWidth)-200 {
+		if k == ebiten.KeyRight && g.playerPosX < float64(screenWidth)-150 {
 			g.playerPosX += 8
 		}
 
@@ -65,82 +82,99 @@ func (g *Game) Update() error {
 		}
 	}
 
-	g.laneLPosY += 5
-	g.laneL1PosY += 5
-	g.laneL2PosY += 5
-	g.laneL3PosY += 5
-	g.laneL4PosY += 5
-	g.laneRPosY += 5
-	g.laneR1PosY += 5
-	g.laneR2PosY += 5
-	g.laneR3PosY += 5
-	g.laneR4PosY += 5
+	g.laneLPosY += 10
+	g.laneL1PosY += 10
+	g.laneL2PosY += 10
+	g.laneL3PosY += 10
+	g.laneL4PosY += 10
+	g.laneRPosY += 10
+	g.laneR1PosY += 10
+	g.laneR2PosY += 10
+	g.laneR3PosY += 10
+	g.laneR4PosY += 10
 
 	if g.laneLPosY == 940 {
-		laneL := ebiten.NewImage(15, 80)
-		laneL.Fill(color.White)
-		g.laneL = laneL
+
 		g.laneLPosX = float64((screenWidth)/2) / 2
 		g.laneLPosY = -100
 	} else if g.laneL1PosY == 940 {
-		laneL1 := ebiten.NewImage(15, 80)
-		laneL1.Fill(color.White)
-		g.laneL1 = laneL1
+
 		g.laneL1PosX = float64((screenWidth)/2) / 2
 		g.laneL1PosY = -100
 	} else if g.laneL2PosY == 940 {
-		laneL2 := ebiten.NewImage(15, 80)
-		laneL2.Fill(color.White)
-		g.laneL2 = laneL2
+
 		g.laneL2PosX = float64((screenWidth)/2) / 2
 		g.laneL2PosY = -100
 	} else if g.laneL3PosY == 940 {
-		laneL3 := ebiten.NewImage(15, 80)
-		laneL3.Fill(color.White)
-		g.laneL3 = laneL3
+
 		g.laneL3PosX = float64((screenWidth)/2) / 2
 		g.laneL3PosY = -100
 	} else if g.laneL4PosY == 940 {
-		laneL4 := ebiten.NewImage(15, 80)
-		laneL4.Fill(color.White)
-		g.laneL4 = laneL4
+
 		g.laneL4PosX = float64((screenWidth)/2) / 2
 		g.laneL4PosY = -100
 	}
 
 	if g.laneRPosY == 940 {
-		laneR := ebiten.NewImage(15, 80)
-		laneR.Fill(color.White)
-		g.laneR = laneR
+
 		g.laneRPosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneRPosY = -100
 	} else if g.laneR1PosY == 940 {
-		laneR1 := ebiten.NewImage(15, 80)
-		laneR1.Fill(color.White)
-		g.laneR1 = laneR1
+
 		g.laneR1PosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneR1PosY = -100
 	} else if g.laneR2PosY == 940 {
-		laneR2 := ebiten.NewImage(15, 80)
-		laneR2.Fill(color.White)
-		g.laneR2 = laneR2
+
 		g.laneR2PosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneR2PosY = -100
 	} else if g.laneR3PosY == 940 {
-		laneR3 := ebiten.NewImage(15, 80)
-		laneR3.Fill(color.White)
-		g.laneR3 = laneR3
+
 		g.laneR3PosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneR3PosY = -100
 	} else if g.laneR4PosY == 940 {
-		laneR4 := ebiten.NewImage(15, 80)
-		laneR4.Fill(color.White)
-		g.laneR4 = laneR4
+
 		g.laneR4PosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneR4PosY = -100
 	}
 
+	g.car1PosY += 10
+	if g.car1PosY == 940 {
+
+		g.car1PosX = float64(getPoisitonLane())
+		g.car1PosY = -100
+	}
+
+	g.car2PosY += 10
+	if g.car2PosY == 940 {
+
+		g.car2PosX = float64(getPoisitonLane())
+		g.car2PosY = -100
+	}
+
+	g.car3PosY += 10
+	if g.car3PosY == 940 {
+
+		g.car3PosX = float64(getPoisitonLane())
+		g.car3PosY = -100
+	}
+
 	return nil
+}
+
+func getPoisitonLane() int {
+	posLane := rand.Intn(3)
+
+	switch posLane {
+	case 0:
+		return int(positionsLane1)
+	case 1:
+		return int(positionsLane2)
+	case 2:
+		return int(positionsLane3)
+	case 3:
+		return int(positionsLane4)
+	}
+	return int(positionsLane1)
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -193,6 +227,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	car.GeoM.Translate(g.playerPosX, g.playerPosY)
 	screen.DrawImage(g.player, car)
 
+	car1 := &ebiten.DrawImageOptions{}
+	car1.GeoM.Translate(g.car1PosX, g.car1PosY)
+	screen.DrawImage(g.car1, car1)
+
+	car2 := &ebiten.DrawImageOptions{}
+	car2.GeoM.Translate(g.car2PosX, g.car2PosY)
+	screen.DrawImage(g.car2, car2)
+
+	car3 := &ebiten.DrawImageOptions{}
+	car3.GeoM.Translate(g.car3PosX, g.car3PosY)
+	screen.DrawImage(g.car3, car3)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -221,7 +266,7 @@ func (g *Game) SetupElements() {
 	}
 
 	g.player = imgCar
-	g.playerPosX = float64(screenWidth/2) - 120
+	g.playerPosX = float64(screenWidth/2) - 200
 	g.playerPosY = float64(screenHeight/2) + 200
 
 	imgBackground, _, err := ebitenutil.NewImageFromFile("back.png")
@@ -275,5 +320,32 @@ func (g *Game) SetupElements() {
 	g.laneR4 = lane
 	g.laneR4PosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 	g.laneR4PosY = -100
+
+	car1, _, err := ebitenutil.NewImageFromFile("c1.png")
+	if err != nil {
+		log.Fatalf("Load image error : %v", err)
+	}
+
+	g.car1 = car1
+	g.car1PosX = float64(screenWidth/2) - 200
+	g.car1PosY = float64(screenHeight/2) - 300
+
+	car2, _, err := ebitenutil.NewImageFromFile("c2.png")
+	if err != nil {
+		log.Fatalf("Load image error : %v", err)
+	}
+
+	g.car2 = car2
+	g.car2PosX = float64(screenWidth/2) + 350
+	g.car2PosY = -100
+
+	car3, _, err := ebitenutil.NewImageFromFile("c3.png")
+	if err != nil {
+		log.Fatalf("Load image error : %v", err)
+	}
+
+	g.car3 = car3
+	g.car3PosX = float64(screenWidth/2) + 100
+	g.car3PosY = -300
 
 }
