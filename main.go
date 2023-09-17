@@ -1,28 +1,51 @@
 package main
 
 import (
+	_ "embed"
+	"flag"
+	"fmt"
 	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
 	"log"
+	"math"
 	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"golang.org/x/image/font"
 )
 
-const screenWidth int = 1020
-const screenHeight int = 860
+const (
+	ModeTitle Mode = iota
+	ModeGame
+	ModeGameOver
+)
+
+const (
+	screenWidth   = 1020
+	screenHeight  = 860
+	titleFontSize = fontSize * 1.5
+	fontSize      = 24
+	smallFontSize = fontSize / 2
+)
 
 var (
-	positionsLane1 = float64(screenWidth/2) - 450
-	positionsLane2 = float64(screenWidth/2) - 200
-	positionsLane3 = float64(screenWidth/2) + 300
-	positionsLane4 = float64(screenWidth/2) + 100
+	positionsLane1  = float64(screenWidth/2) - 450
+	positionsLane2  = float64(screenWidth/2) - 200
+	positionsLane3  = float64(screenWidth/2) + 300
+	positionsLane4  = float64(screenWidth/2) + 100
+	titleArcadeFont font.Face
+	arcadeFont      font.Face
+	smallArcadeFont font.Face
 )
 
+type Mode int
+
 type Game struct {
+	mode           Mode
+	gameoverCount  int
 	player         *ebiten.Image
 	playerPosX     float64
 	playerPosY     float64
@@ -70,92 +93,185 @@ type Game struct {
 	car3PosY       float64
 }
 
-func (g *Game) Update() error {
+var flagCRT = flag.Bool("crt", false, "enable the CRT effect")
 
-	for _, k := range inpututil.AppendPressedKeys([]ebiten.Key{ebiten.KeyRight, ebiten.KeyLeft}) {
-		if k == ebiten.KeyRight && g.playerPosX < float64(screenWidth)-150 {
-			g.playerPosX += 8
-		}
+var crtGo []byte
 
-		if k == ebiten.KeyLeft && g.playerPosX > 0 {
-			g.playerPosX -= 8
+type GameWithCRTEffect struct {
+	ebiten.Game
+
+	crtShader *ebiten.Shader
+}
+
+func NewGame(crt bool) ebiten.Game {
+	g := &Game{}
+	g.SetupElements()
+	if crt {
+		return &GameWithCRTEffect{Game: g}
+	}
+	return g
+}
+
+func (g *GameWithCRTEffect) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
+	if g.crtShader == nil {
+		s, err := ebiten.NewShader(crtGo)
+		if err != nil {
+			panic(fmt.Sprintf("flappy: failed to compiled the CRT shader: %v", err))
 		}
+		g.crtShader = s
 	}
 
-	g.laneLPosY += 10
-	g.laneL1PosY += 10
-	g.laneL2PosY += 10
-	g.laneL3PosY += 10
-	g.laneL4PosY += 10
-	g.laneRPosY += 10
-	g.laneR1PosY += 10
-	g.laneR2PosY += 10
-	g.laneR3PosY += 10
-	g.laneR4PosY += 10
+	os := offscreen.Bounds().Size()
 
-	if g.laneLPosY == 940 {
+	op := &ebiten.DrawRectShaderOptions{}
+	op.Images[0] = offscreen
+	op.GeoM = geoM
+	screen.DrawRectShader(os.X, os.Y, g.crtShader, op)
+}
+
+func (g *Game) moveLanes(f float64) {
+
+	g.laneLPosY += f
+	g.laneL1PosY += f
+	g.laneL2PosY += f
+	g.laneL3PosY += f
+	g.laneL4PosY += f
+	g.laneRPosY += f
+	g.laneR1PosY += f
+	g.laneR2PosY += f
+	g.laneR3PosY += f
+	g.laneR4PosY += f
+
+	if g.laneLPosY > 940 {
 
 		g.laneLPosX = float64((screenWidth)/2) / 2
 		g.laneLPosY = -100
-	} else if g.laneL1PosY == 940 {
+	} else if g.laneL1PosY > 940 {
 
 		g.laneL1PosX = float64((screenWidth)/2) / 2
 		g.laneL1PosY = -100
-	} else if g.laneL2PosY == 940 {
+	} else if g.laneL2PosY > 940 {
 
 		g.laneL2PosX = float64((screenWidth)/2) / 2
 		g.laneL2PosY = -100
-	} else if g.laneL3PosY == 940 {
+	} else if g.laneL3PosY > 940 {
 
 		g.laneL3PosX = float64((screenWidth)/2) / 2
 		g.laneL3PosY = -100
-	} else if g.laneL4PosY == 940 {
+	} else if g.laneL4PosY > 940 {
 
 		g.laneL4PosX = float64((screenWidth)/2) / 2
 		g.laneL4PosY = -100
 	}
 
-	if g.laneRPosY == 940 {
+	if g.laneRPosY > 940 {
 
 		g.laneRPosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneRPosY = -100
-	} else if g.laneR1PosY == 940 {
+	} else if g.laneR1PosY > 940 {
 
 		g.laneR1PosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneR1PosY = -100
-	} else if g.laneR2PosY == 940 {
+	} else if g.laneR2PosY > 940 {
 
 		g.laneR2PosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneR2PosY = -100
-	} else if g.laneR3PosY == 940 {
+	} else if g.laneR3PosY > 940 {
 
 		g.laneR3PosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneR3PosY = -100
-	} else if g.laneR4PosY == 940 {
+	} else if g.laneR4PosY > 940 {
 
 		g.laneR4PosX = float64(screenWidth)/2 + float64((screenWidth)/2)/2
 		g.laneR4PosY = -100
 	}
+}
 
-	g.car1PosY += 10
-	if g.car1PosY == 940 {
+func (g *Game) moveCars(f float64) {
+
+	g.car1PosY += f
+	if g.car1PosY > 940 {
 
 		g.car1PosX = float64(getPoisitonLane())
 		g.car1PosY = -100
 	}
 
-	g.car2PosY += 10
-	if g.car2PosY == 940 {
+	g.car2PosY += f
+	if g.car2PosY > 940 {
 
 		g.car2PosX = float64(getPoisitonLane())
 		g.car2PosY = -100
 	}
 
-	g.car3PosY += 10
-	if g.car3PosY == 940 {
+	g.car3PosY += f
+	if g.car3PosY > 940 {
 
 		g.car3PosX = float64(getPoisitonLane())
 		g.car3PosY = -100
+	}
+}
+
+func (g *Game) isCarHit() bool {
+	if g.playerPosY > g.car1PosY && g.playerPosY-g.car1PosY <= 125 && (math.Abs(g.playerPosX-g.car1PosX) <= 60) {
+
+		return true
+	} else if g.playerPosY > g.car2PosY && g.playerPosY-g.car2PosY <= 125 && (math.Abs(g.playerPosX-g.car2PosX) <= 60) {
+
+		return true
+	} else if g.playerPosY > g.car3PosY && g.playerPosY-g.car3PosY <= 125 && (math.Abs(g.playerPosX-g.car3PosX) <= 60) {
+
+		return true
+	}
+	return false
+}
+
+func (g *Game) Update() error {
+
+	switch g.mode {
+	case ModeTitle:
+		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+			g.mode = ModeGame
+		}
+	case ModeGame:
+		flag := true
+		for _, k := range inpututil.PressedKeys() {
+			if k == ebiten.KeyRight && g.playerPosX < float64(screenWidth)-150 {
+				g.playerPosX += 8
+
+			}
+
+			if k == ebiten.KeyLeft && g.playerPosX > 0 {
+				g.playerPosX -= 8
+			}
+
+			if k == ebiten.KeyArrowUp {
+				g.moveLanes(float64(20))
+				g.moveCars(float64(20))
+				flag = false
+			} else {
+				flag = true
+			}
+		}
+
+		if flag {
+			g.moveLanes(float64(10))
+			g.moveCars(float64(10))
+		}
+
+		if g.isCarHit() {
+			g.mode = ModeGameOver
+			g.gameoverCount = 30
+		}
+
+	case ModeGameOver:
+		if g.gameoverCount > 0 {
+			g.gameoverCount--
+		}
+		if g.gameoverCount == 0 && inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+			g.SetupElements()
+			g.mode = ModeTitle
+		}
+
 	}
 
 	return nil
@@ -177,7 +293,7 @@ func getPoisitonLane() int {
 	return int(positionsLane1)
 }
 
-func (g *Game) Draw(screen *ebiten.Image) {
+func (g *Game) drawRoad(screen *ebiten.Image) {
 
 	background := &ebiten.DrawImageOptions{}
 	background.GeoM.Translate(g.backgroundPosX, g.backgroundPosY)
@@ -222,6 +338,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	laneR4 := &ebiten.DrawImageOptions{}
 	laneR4.GeoM.Translate(g.laneR4PosX, g.laneR4PosY)
 	screen.DrawImage(g.laneR4, laneR4)
+}
+
+func (g *Game) drawCars(screen *ebiten.Image) {
 
 	car := &ebiten.DrawImageOptions{}
 	car.GeoM.Translate(g.playerPosX, g.playerPosY)
@@ -240,21 +359,61 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.DrawImage(g.car3, car3)
 }
 
+func (g *Game) Draw(screen *ebiten.Image) {
+
+	screen.Fill(color.RGBA{0x80, 0xa0, 0xc0, 0xff})
+	g.drawRoad(screen)
+	if g.mode != ModeTitle {
+		g.drawCars(screen)
+	}
+	//var titleTexts []string
+	//var texts []string
+	switch g.mode {
+	case ModeTitle:
+		//titleTexts = []string{"RACE MANIAC"}
+		//texts = []string{"", "", "", "", "", "", "", "PRESS SPACE KEY"}
+	case ModeGameOver:
+		//texts = []string{"", "GAME OVER!"}
+	}
+	//for i, l := range titleTexts {
+	//x := (screenWidth - len(l)*titleFontSize) / 2
+	//text.Draw(screen, l, titleArcadeFont, x, (i+4)*titleFontSize, color.White)
+	//}
+	//for i, l := range texts {
+	//x := (screenWidth - len(l)*fontSize) / 2
+	//text.Draw(screen, l, arcadeFont, x, (i+4)*fontSize, color.White)
+	//}
+
+	if g.mode == ModeTitle {
+		//msg := []string{
+		//"Race maniac,a simple 2d game implemented in go lang",
+	}
+	//for i, l := range msg {
+	//x := (screenWidth - len(l)*smallFontSize) / 2
+	//text.Draw(screen, l, smallArcadeFont, x, screenHeight-4+(i-1)*smallFontSize, color.White)
+	//}
+	//}
+
+	//ebitenutil.DebugPrint(screen, fmt.Sprintf("TPS: %0.2f", ebiten.ActualTPS()))
+
+}
+
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 
 	return 1020, 860
 }
 
 func main() {
+	flag.Parse()
 
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("HighwayManiac")
 
-	g := &Game{}
-	g.SetupElements()
-
-	if err := ebiten.RunGame(g); err != nil {
-		log.Fatalf(" Run game error : %v", err)
+	//if err := ebiten.RunGame(g); err != nil {
+	//log.Fatalf(" Run game error : %v", err)
+	//}
+	if err := ebiten.RunGame(NewGame(*flagCRT)); err != nil {
+		panic(err)
 	}
 }
 
