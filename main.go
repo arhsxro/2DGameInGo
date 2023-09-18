@@ -13,8 +13,11 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
 )
 
 const (
@@ -39,6 +42,7 @@ var (
 	titleArcadeFont font.Face
 	arcadeFont      font.Face
 	smallArcadeFont font.Face
+	mplusNormalFont font.Face
 )
 
 type Mode int
@@ -212,13 +216,13 @@ func (g *Game) moveCars(f float64) {
 }
 
 func (g *Game) isCarHit() bool {
-	if g.playerPosY > g.car1PosY && g.playerPosY-g.car1PosY <= 125 && (math.Abs(g.playerPosX-g.car1PosX) <= 60) {
+	if g.playerPosY > g.car1PosY && g.playerPosY-g.car1PosY <= 125 && (math.Abs(g.playerPosX-g.car1PosX) <= 67) {
 
 		return true
-	} else if g.playerPosY > g.car2PosY && g.playerPosY-g.car2PosY <= 125 && (math.Abs(g.playerPosX-g.car2PosX) <= 60) {
+	} else if g.playerPosY > g.car2PosY && g.playerPosY-g.car2PosY <= 125 && (math.Abs(g.playerPosX-g.car2PosX) <= 67) {
 
 		return true
-	} else if g.playerPosY > g.car3PosY && g.playerPosY-g.car3PosY <= 125 && (math.Abs(g.playerPosX-g.car3PosX) <= 60) {
+	} else if g.playerPosY > g.car3PosY && g.playerPosY-g.car3PosY <= 125 && (math.Abs(g.playerPosX-g.car3PosX) <= 67) {
 
 		return true
 	}
@@ -366,35 +370,35 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if g.mode != ModeTitle {
 		g.drawCars(screen)
 	}
-	//var titleTexts []string
-	//var texts []string
+	var titleTexts []string
+	var texts []string
 	switch g.mode {
 	case ModeTitle:
-		//titleTexts = []string{"RACE MANIAC"}
-		//texts = []string{"", "", "", "", "", "", "", "PRESS SPACE KEY"}
+		titleTexts = []string{"RACE MANIAC"}
+		texts = []string{"", "", "", "", "", "", "", "PRESS SPACE TO START PLAYING"}
 	case ModeGameOver:
-		//texts = []string{"", "GAME OVER!"}
+		texts = []string{"", "GAME OVER!  PRESS SPACE TO PLAY AGAIN"}
 	}
-	//for i, l := range titleTexts {
-	//x := (screenWidth - len(l)*titleFontSize) / 2
-	//text.Draw(screen, l, titleArcadeFont, x, (i+4)*titleFontSize, color.White)
-	//}
-	//for i, l := range texts {
-	//x := (screenWidth - len(l)*fontSize) / 2
-	//text.Draw(screen, l, arcadeFont, x, (i+4)*fontSize, color.White)
-	//}
+	for i, l := range titleTexts {
+		x := (screenWidth - len(l)*titleFontSize) / 2
+		text.Draw(screen, l, mplusNormalFont, x, (i+4)*titleFontSize, color.White)
+	}
+	for i, l := range texts {
+		x := (screenWidth - len(l)*fontSize) / 2
+		text.Draw(screen, l, mplusNormalFont, x, (i+4)*fontSize, color.White)
+	}
 
 	if g.mode == ModeTitle {
-		//msg := []string{
-		//"Race maniac,a simple 2d game implemented in go lang",
+		msg := []string{
+			"Race maniac,a simple 2d game implemented in go lang",
+		}
+		for i, l := range msg {
+			x := (screenWidth - len(l)*smallFontSize) / 2
+			text.Draw(screen, l, mplusNormalFont, x, screenHeight-4+(i-1)*smallFontSize, color.White)
+		}
 	}
-	//for i, l := range msg {
-	//x := (screenWidth - len(l)*smallFontSize) / 2
-	//text.Draw(screen, l, smallArcadeFont, x, screenHeight-4+(i-1)*smallFontSize, color.White)
-	//}
-	//}
 
-	//ebitenutil.DebugPrint(screen, fmt.Sprintf("TPS: %0.2f", ebiten.ActualTPS()))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("TPS: %0.2f", ebiten.ActualTPS()))
 
 }
 
@@ -405,6 +409,20 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	flag.Parse()
+
+	tt, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mplusNormalFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    fontSize,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("HighwayManiac")
@@ -425,7 +443,7 @@ func (g *Game) SetupElements() {
 	}
 
 	g.player = imgCar
-	g.playerPosX = float64(screenWidth/2) - 200
+	g.playerPosX = float64(screenWidth/2) - 500
 	g.playerPosY = float64(screenHeight/2) + 200
 
 	imgBackground, _, err := ebitenutil.NewImageFromFile("back.png")
