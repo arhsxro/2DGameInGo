@@ -37,7 +37,7 @@ const (
 	fontSize            = 24
 	smallFontSize       = fontSize / 2
 	sampleRate          = 48000
-	bytesPerSample      = 4 // 2 channels * 2 bytes (16 bit)
+	bytesPerSample      = 4
 	introLengthInSecond = 5
 	loopLengthInSecond  = 4
 )
@@ -47,12 +47,8 @@ var (
 	positionsLane2  = float64(screenWidth/2) - 200
 	positionsLane3  = float64(screenWidth/2) + 300
 	positionsLane4  = float64(screenWidth/2) + 100
-	titleArcadeFont font.Face
-	arcadeFont      font.Face
-	smallArcadeFont font.Face
 	mplusNormalFont font.Face
-	audioContext    *audio.Context
-	musicPlayer     *audio.Player
+	audioContext    = audio.NewContext(48000)
 )
 
 type Mode int
@@ -472,9 +468,6 @@ func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("HighwayManiac")
 
-	//if err := ebiten.RunGame(g); err != nil {
-	//log.Fatalf(" Run game error : %v", err)
-	//}
 	if err := ebiten.RunGame(NewGame(*flagCRT)); err != nil {
 		panic(err)
 	}
@@ -489,7 +482,6 @@ func (g *Game) SetupElements(musicFlag bool) {
 			fmt.Println(err)
 			return
 		}
-		audioContext = audio.NewContext(22050)
 
 		oggS, err := mp3.DecodeWithoutResampling(bytes.NewReader(v))
 		if err != nil {
@@ -498,16 +490,17 @@ func (g *Game) SetupElements(musicFlag bool) {
 
 		s := audio.NewInfiniteLoop(oggS, loopLengthInSecond*600*22050)
 
-		musicPlayer, err = audio.NewPlayer(audioContext, s)
+		musicPlayer, err := audio.NewPlayer(audioContext, s)
 		if err != nil {
 			log.Fatal(err)
 		}
 		musicPlayer.SetVolume(0.1)
-		// Play the infinite-length stream. This never ends.
+
 		musicPlayer.Play()
+
 	}
 
-	h, err := ioutil.ReadFile("carcrash.mp3") //read the content of file
+	h, err := ioutil.ReadFile("carcrash.mp3")
 	if err != nil {
 		fmt.Println(err)
 		return
