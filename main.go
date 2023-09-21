@@ -1,17 +1,21 @@
 package main
 
 import (
+	"bytes"
 	_ "embed"
 	"flag"
 	"fmt"
 	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
+	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/audio"
+	"github.com/hajimehoshi/ebiten/v2/audio/mp3"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -27,11 +31,15 @@ const (
 )
 
 const (
-	screenWidth   = 1020
-	screenHeight  = 860
-	titleFontSize = fontSize * 1.5
-	fontSize      = 24
-	smallFontSize = fontSize / 2
+	screenWidth         = 1020
+	screenHeight        = 860
+	titleFontSize       = fontSize * 1.5
+	fontSize            = 24
+	smallFontSize       = fontSize / 2
+	sampleRate          = 48000
+	bytesPerSample      = 4 // 2 channels * 2 bytes (16 bit)
+	introLengthInSecond = 5
+	loopLengthInSecond  = 4
 )
 
 var (
@@ -43,6 +51,8 @@ var (
 	arcadeFont      font.Face
 	smallArcadeFont font.Face
 	mplusNormalFont font.Face
+	audioContext    *audio.Context
+	musicPlayer     *audio.Player
 )
 
 type Mode int
@@ -50,6 +60,7 @@ type Mode int
 type Game struct {
 	mode           Mode
 	gameoverCount  int
+	carCrash       *audio.Player
 	player         *ebiten.Image
 	playerPosX     float64
 	playerPosY     float64
@@ -95,6 +106,12 @@ type Game struct {
 	car3           *ebiten.Image
 	car3PosX       float64
 	car3PosY       float64
+	car4           *ebiten.Image
+	car4PosX       float64
+	car4PosY       float64
+	car5           *ebiten.Image
+	car5PosX       float64
+	car5PosY       float64
 }
 
 var flagCRT = flag.Bool("crt", false, "enable the CRT effect")
@@ -109,7 +126,7 @@ type GameWithCRTEffect struct {
 
 func NewGame(crt bool) ebiten.Game {
 	g := &Game{}
-	g.SetupElements()
+	g.SetupElements(true)
 	if crt {
 		return &GameWithCRTEffect{Game: g}
 	}
@@ -213,6 +230,20 @@ func (g *Game) moveCars(f float64) {
 		g.car3PosX = float64(getPoisitonLane())
 		g.car3PosY = -100
 	}
+
+	g.car4PosY += f
+	if g.car4PosY > 940 {
+
+		g.car4PosX = float64(getPoisitonLane())
+		g.car4PosY = -100
+	}
+
+	g.car5PosY += f
+	if g.car5PosY > 940 {
+
+		g.car5PosX = float64(getPoisitonLane())
+		g.car5PosY = -100
+	}
 }
 
 func (g *Game) isCarHit() bool {
@@ -223,6 +254,12 @@ func (g *Game) isCarHit() bool {
 
 		return true
 	} else if g.playerPosY > g.car3PosY && g.playerPosY-g.car3PosY <= 125 && (math.Abs(g.playerPosX-g.car3PosX) <= 67) {
+
+		return true
+	} else if g.playerPosY > g.car4PosY && g.playerPosY-g.car4PosY <= 125 && (math.Abs(g.playerPosX-g.car4PosX) <= 67) {
+
+		return true
+	} else if g.playerPosY > g.car5PosY && g.playerPosY-g.car5PosY <= 125 && (math.Abs(g.playerPosX-g.car5PosX) <= 67) {
 
 		return true
 	}
@@ -263,6 +300,7 @@ func (g *Game) Update() error {
 		}
 
 		if g.isCarHit() {
+			g.carCrash.Play()
 			g.mode = ModeGameOver
 			g.gameoverCount = 30
 		}
@@ -272,12 +310,11 @@ func (g *Game) Update() error {
 			g.gameoverCount--
 		}
 		if g.gameoverCount == 0 && inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-			g.SetupElements()
-			g.mode = ModeTitle
+			g.SetupElements(false)
+			g.mode = ModeGame
 		}
 
 	}
-
 	return nil
 }
 
@@ -361,6 +398,14 @@ func (g *Game) drawCars(screen *ebiten.Image) {
 	car3 := &ebiten.DrawImageOptions{}
 	car3.GeoM.Translate(g.car3PosX, g.car3PosY)
 	screen.DrawImage(g.car3, car3)
+
+	car4 := &ebiten.DrawImageOptions{}
+	car4.GeoM.Translate(g.car4PosX, g.car4PosY)
+	screen.DrawImage(g.car4, car4)
+
+	car5 := &ebiten.DrawImageOptions{}
+	car5.GeoM.Translate(g.car5PosX, g.car5PosY)
+	screen.DrawImage(g.car5, car5)
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -374,27 +419,27 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	var texts []string
 	switch g.mode {
 	case ModeTitle:
-		titleTexts = []string{"RACE MANIAC"}
-		texts = []string{"", "", "", "", "", "", "", "PRESS SPACE TO START PLAYING"}
+		titleTexts = []string{"Usefull tip : right and left key to move and up key to speed up"}
+		texts = []string{"PRESS SPACE TO START PLAYING"}
 	case ModeGameOver:
 		texts = []string{"", "GAME OVER!  PRESS SPACE TO PLAY AGAIN"}
 	}
 	for i, l := range titleTexts {
-		x := (screenWidth - len(l)*titleFontSize) / 2
-		text.Draw(screen, l, mplusNormalFont, x, (i+4)*titleFontSize, color.White)
+		x := (screenWidth - len(l)*smallFontSize) / 2
+		text.Draw(screen, l, mplusNormalFont, x, (i+40)*smallFontSize, color.Black)
 	}
 	for i, l := range texts {
-		x := (screenWidth - len(l)*fontSize) / 2
-		text.Draw(screen, l, mplusNormalFont, x, (i+4)*fontSize, color.White)
+		x := (screenWidth - len(l)*smallFontSize) / 2
+		text.Draw(screen, l, mplusNormalFont, x, (i+10)*smallFontSize, color.RGBA{255, 99, 71, 1})
 	}
 
 	if g.mode == ModeTitle {
 		msg := []string{
-			"Race maniac,a simple 2d game implemented in go lang",
+			"Highway maniac,a simple 2d game implemented in go lang",
 		}
 		for i, l := range msg {
 			x := (screenWidth - len(l)*smallFontSize) / 2
-			text.Draw(screen, l, mplusNormalFont, x, screenHeight-4+(i-1)*smallFontSize, color.White)
+			text.Draw(screen, l, mplusNormalFont, x, screenHeight-4+(i-1)*smallFontSize, color.Black)
 		}
 	}
 
@@ -435,7 +480,50 @@ func main() {
 	}
 }
 
-func (g *Game) SetupElements() {
+func (g *Game) SetupElements(musicFlag bool) {
+
+	if musicFlag {
+
+		v, err := ioutil.ReadFile("backgroundmusic.mp3") //read the content of file
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		audioContext = audio.NewContext(22050)
+
+		oggS, err := mp3.DecodeWithoutResampling(bytes.NewReader(v))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		s := audio.NewInfiniteLoop(oggS, loopLengthInSecond*600*22050)
+
+		musicPlayer, err = audio.NewPlayer(audioContext, s)
+		if err != nil {
+			log.Fatal(err)
+		}
+		musicPlayer.SetVolume(0.1)
+		// Play the infinite-length stream. This never ends.
+		musicPlayer.Play()
+	}
+
+	h, err := ioutil.ReadFile("carcrash.mp3") //read the content of file
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	ogg, err := mp3.DecodeWithoutResampling(bytes.NewReader(h))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	g.carCrash, err = audioContext.NewPlayer(ogg)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	g.carCrash.SetVolume(2)
 
 	imgCar, _, err := ebitenutil.NewImageFromFile("c.png")
 	if err != nil {
@@ -525,4 +613,21 @@ func (g *Game) SetupElements() {
 	g.car3PosX = float64(screenWidth/2) + 100
 	g.car3PosY = -300
 
+	car4, _, err := ebitenutil.NewImageFromFile("c4.png")
+	if err != nil {
+		log.Fatalf("Load image error : %v", err)
+	}
+
+	g.car4 = car4
+	g.car4PosX = float64(screenWidth/2) - 200
+	g.car4PosY = -100
+
+	car5, _, err := ebitenutil.NewImageFromFile("c5.png")
+	if err != nil {
+		log.Fatalf("Load image error : %v", err)
+	}
+
+	g.car5 = car5
+	g.car5PosX = float64(screenWidth/2) + 350
+	g.car5PosY = -500
 }
