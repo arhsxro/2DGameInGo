@@ -315,7 +315,7 @@ func (g *Game) Update() error {
 }
 
 func getPoisitonLane() int {
-	posLane := rand.Intn(3)
+	posLane := rand.Intn(4)
 
 	switch posLane {
 	case 0:
